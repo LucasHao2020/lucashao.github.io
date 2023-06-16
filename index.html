@@ -20,9 +20,10 @@
 </head>
 
 <body>
-    <a-scene arjs embedded>
+    <a-scene arjs="sourceType: webcam; debugUIEnabled: true" embedded>
         <a-text value="Bilibili" color="pink" rotation="-90 0 0"></a-text>
-        <a-marker-camera preset="hiro"></a-marker-camera>
+<!--         <a-marker-camera preset="hiro"></a-marker-camera> -->
+        <a-marker type="area"></a-marker>
     </a-scene>
 </body>
 
