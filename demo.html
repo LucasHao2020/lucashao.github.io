@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>
+        华为WebAR
+    </title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no">
+    <meta name="keywords" content="" />
+
+</head>
+
+<body style="	margin: 0;
+background-color: #000;
+color: #fff;
+font-family: Monospace;
+font-size: 13px;
+line-height: 24px;
+overscroll-behavior: none;">
+    <script src="./slam/LOG-iMedia_XREngine_Cyberverse_3.1.0.js"></script>
+    <script src="./slam/slamcommon.js"></script>
+    <script src="./hwar.js"></script>
+    <script>
+        hwar.getToken().then((res) => {
+            Promise.all([engineInit(), requestAreaInfo(), checkGyro()]).then(([res1, cfg, isCheckGyro]) => {
+                if (isCheckGyro) {
+                    if (cfg && cfg.theme) {
+                        console.log('正常启动');
+                    } else {
+                        console.log("不在服务区");
+                    }
+                } else {
+                    console.log("该机型暂不支持");
+                }
+            }).catch((err) => {
+                switch (err.message) {
+                    case "SLAM_INIT_FAIL":
+                        console.log("启动失败");
+                        break;
+                    case "PHONE_TYPE_NOT_SURPORT":
+                        console.log("该机型暂不支持");
+                        break;
+                    case "GPS_ERROR":
+                        console.log("GPS获取定位超时! 建议给浏览器授权获取地理位置的能力");
+                        break;
+                    default:
+                        console.log("不在服务区");
+                        break;
+                }
+            });
+        }).catch((err) => {
+            console.log("获取Token失败");
+        });
+
+        var utmCode;
+        var address;
+        /** 请求区域配置 */
+        function requestAreaInfo() {
+            return new Promise((resolve, reject) => {
+                getGPS().then((position) => {
+                    let gps = position.coords;
+                    if (utmCode == "") {
+                        utmCode = hwar.convertGPStoUTM(gps).utmCode + "N";
+                    }
+                    hwar.searchArea({
+                        "location": { "lon": gps.longitude, "lat": gps.latitude },
+                        "radius": 50
+                    }).then((res) => {
+                        if (res.data.areaIdAndAreaNameResp.length > 0) {
+                            address = res.data.areaIdAndAreaNameResp[0].areaName;
+                            getConfig(address).then((cfg) => {
+                                resolve(cfg);
+                            }).catch((err) => {
+                                reject(err);
+                            });
+                        } else {
+                            console.log("不在目标区域!", "error", 2000);
+                            reject();
+                        }
+                    }).catch((err) => {
+                        reject(new Error("获取区域失败!"));
+                    });
+                }).catch((err) => {
+                    reject(err);
+                });
+            });
+        }
+
+        /** 获取区域配置信息 */
+        function getConfig(value) {
+            return new Promise((resolve, reject) => {
+                hwar.getAreaConfig(value).then((respons) => {
+                    if (respons != null) {
+                        //设置默认GPS 局点配置内含默认GPS  或者  传入当前获取到的GPS值
+                        hwar.setAreaGPS({
+                            latitude: respons.latitude,
+                            longitude: respons.longitude,
+                            altitude: respons.altitude
+                        });
+                        resolve(respons);
+                    } else {
+                        reject(new Error("暂无该区域的配置信息!" + value));
+                    }
+                }).catch(() => {
+                    reject(new Error("获取区域配置信息失败!" + value));
+                });
+            });
+        }
+
+        /** 引擎启动 */
+        function engineInit() {
+            return new Promise((resolve, reject) => {
+                addGlobalListener();
+                hwar.createARSession().then(res => {
+                    resolve();
+                }).catch((err => {
+                    reject(err);
+                }));
+            });
+        }
+
+        var nonePixelCount = 0;
+        function addGlobalListener() {
+            hwar.addEventListener('WEB_INFO', (evt) => {
+                //版本号
+            });
+            hwar.addEventListener('UPDATE_CAMERA_FOV', (evt) => {
+                // updateFov(evt.data.fy);//渲染时设置fov
+            });
+// //three.js r144版本 相机fov设置代码示例（TypeScript语言）
+// /** 获取手机标定后设置相机参数 */
+// public updateFov(fy): void {
+//     this.nVpsFy = fy;
+//     let nFov: number = ThreeUtils.calculateVerticalFov(RenderConfig.RenderCameraWidth, this.nVpsFy);
+//     let fov: number = ThreeUtils.radianToDegree(nFov);
+//     this.camera.fov = fov;
+// }
+// //ThreeUtils.ts
+// static calculateVerticalFov(nImageHeight: number, nFocal: number) {
+//     return 2 * Math.atan(0.5 * nImageHeight / nFocal);
+// }
+// static radianToDegree(nRadian: number) {
+//     return nRadian / Math.PI * 180;
+// }
+
+// //LayaAir 2.12版本 相机fov设置代码示例（TypeScript语言）
+// /** 获取手机标定后设置相机参数 */
+// public updateFov(fy): void {
+//     this.nVpsFy = fy;
+//     let nFov: number = LayaUtils.calculateVerticalFov(RenderConfig.RenderCameraWidth, this.nVpsFy);
+//     let fov: number = LayaUtils.radianToDegree(nFov);
+//     this.mainCamera.fieldOfView = fov;
+// }
+// //LayaUtils.ts
+// static calculateVerticalFov(nImageHeight: number, nFocal: number) {
+//     return 2 * Math.atan(0.5 * nImageHeight / nFocal);
+// }
+// static radianToDegree(nRadian: number) {
+//     return nRadian / Math.PI * 180;
+// }
+            hwar.addEventListener('LANDSCAPE_BY_ROLL', (evt) => {
+                //evt.data.isLandscapeByRoll 提示设备竖屏
+            });
+            hwar.addEventListener('AUGULAR_VELOCITY_BIG', (evt) => {
+                //当设备角速度过大时
+                console.log("动作太快了，慢一点导航才能更准确哦");
+            })
+            hwar.addEventListener('VPS_CHECK_INFO', (evt) => {
+                let content = evt.data.str;
+                console.log(content);
+            });
+            hwar.addEventListener('ORIENTATION_NORMAL', (evt) => {
+                let orientation_is_normal = evt.data.isNormal;
+                if (!orientation_is_normal) {
+                    if (evt.data.isNeedShow) {
+                        console.log('定位失败 显示');
+                        console.log('强提示出来了，将值初始化');
+                    }
+                    console.log("正在定位，请平举手机");
+                }
+            });
+            hwar.addEventListener('VIDEO_STREAM_GET_ERROR', (evt) => {
+                console.log("相机开启失败,建议关闭其他占用相机的应用");
+            });
+            hwar.addEventListener('VIDEO_STREAM_GET_NONE_PIXEL', (evt) => {
+                nonePixelCount++;
+                //10s内一直是空白像素  认定为视频流有问题
+                if (nonePixelCount >= 150) {
+                    console.log("相机开启失败,建议关闭其他占用相机的应用");
+                }
+            });
+            hwar.addEventListener('NO_SRTEAM', (evt) => {
+                //视频流开启失败
+                console.log("出了点小意外哦~建议重启");
+            });
+            hwar.addEventListener('VPS_FAIL', () => {
+                console.log('vps定位失败');
+                console.log('重置VPS状态记录，便于重新初始化并发起导航；关闭vps自动请求');
+                console.log('定位失败 显示UI提示');
+            });
+            //定位成功回调
+            hwar.registerGetNewVpsPose((dictPoseData, vpsOffset) => {
+                //可计算与上次定位的差值、与终点的距离。当有3D内容时可重置世界坐标原点重新渲染内容
+            });
+
+            window.addEventListener('offline', function (e) {
+                console.log("网络连接失败!");
+            });
+
+            window.addEventListener('online', function (e) {
+                console.log("网络连接成功!");
+            });
+
+            window.addEventListener("beforeunload", (e) => {
+                console.log("页面刷新!");
+            });
+
+            document.addEventListener("visibilitychange", (e) => {
+                //前后台切换影响 定位启动 需要刷新uuid
+            });
+
+            hwar.registerRefreshCameraMat((cameraMat, imgData) => {
+                if (cameraMat) {
+                    //VPS定位成功，输出相机矩阵
+                    console.log(`相机矩阵：${cameraMat}`);
+                }
+                //预览流默认宽:高 = 480:640，不同尺寸屏幕请自行适配    
+                console.log(`接收到视频流图像${imgData}`);
+            });
+        }
+
+        /** 检测手机的传感器陀螺仪是否正常 */
+        function checkGyro() {
+            return new Promise((resolve, reject) => {
+                hwar.addEventListener('GYRO_STATUS', (evt) => {
+                    resolve(evt.data.gyro);
+                });
+            });
+        }
+
+        function getGPS() {
+            return new Promise((resolve, reject) => {
+                //如果10秒还没有位置返回  应该是网络有问题  或者 GPS位置权限没有打开
+                let t = setTimeout(() => {
+                    clearTimeout(t);
+                    reject(new Error("GPS_ERROR"));
+                }, 20000);
+
+                navigator.geolocation.getCurrentPosition((position) => {
+                    clearTimeout(t);
+                    resolve(position);
+                }, (error) => {
+                    clearTimeout(t);
+                    reject(new Error("GPS_ERROR"));
+                });
+            });
+        }
+
+        //设置默认GPS
+        function setAreaGPS(gps) {
+            return new Promise((resolve, reject) => {
+                hwar.setAreaGPS(gps);
+                resolve(true);
+            })
+        }
+
+//three.js r144版本 相机渲染代码示例（TS语言）
+//图像作为3D场景的背景
+//渲染器的设置如下：
+// this.renderer = new THREE.WebGLRenderer({ alpha: true, preserveDrawingBuffer: true, antialias: true });
+// this.renderer.autoClearColor = true;
+// this.renderer.sortObjects = false;
+// this.renderer.setPixelRatio(window.devicePixelRatio);
+// this.renderer.setSize(window.innerWidth, window.innerHeight);
+// this.renderer.localClippingEnabled = true;
+// this.renderer.autoClear = false;
+// this.renderer.debug.checkShaderErrors = false;
+// document.body.appendChild(this.renderer.domElement);
+// public updateARCameraMatrix(cameraMat: THREE.Matrix4, imgData: ImageData): void {
+//     if (cameraMat) {
+//         this.camera.matrix.fromArray(cameraMat.toArray());
+//         this.camera.updateMatrixWorld(true);
+//     }
+//     if (imgData) {
+//         let buffer: Uint8Array = new Uint8Array(imgData.data.buffer);
+//         let tex: DataTexture = new DataTexture(buffer, imgData.width, imgData.height, THREE.RGBAFormat);
+//         tex.needsUpdate = true;
+//         tex.matrixAutoUpdate = false;
+//         tex.magFilter = THREE.LinearFilter;
+//         tex.flipY = true;
+//         tex.encoding = THREE.sRGBEncoding;
+//         this.scene.background = tex;
+//     }
+// }
+
+//LayaAir 2.12版本 相机渲染代码示例（TS）
+//图像作为舞台的背景，将video:Laya.Sprite添加到舞台，添加3D场景，并将场景相机设置如下：
+// Laya.stage.addChild(this.video);
+// this.mainScene.mouseThrough = false;
+// this.mainCamera = this.mainScene.getChildByName("Main Camera") as Laya.Camera;
+// this.mainCamera.enableHDR = false;
+// this.mainCamera.clearColor = new Laya.Vector4(0, 0, 0, 255);
+// this.mainCamera.clearFlag = Laya.CameraClearFlags.DepthOnly;
+// this.mainCamera.fieldOfView = 66;
+// this.mainCamera.depthTextureMode = Laya.DepthTextureMode.None;
+// Laya.stage.addChild(this.mainScene);
+// public updateARCameraMatrix(cameraMat:{elements:Float32Array,isMatrix4:boolean},imgData:ImageData): void {
+//     if (cameraMat) {
+//         let mat: Laya.Matrix4x4 = new Laya.Matrix4x4();
+//         mat.elements = cameraMat.elements;
+//         this.mainCamera.transform.worldMatrix = mat;
+//     }
+//     if (imgData) {
+//          if (this._stageHeight !== Laya.stage.height) {
+//              //请自行对渲染尺寸(宽:高 = 480:640)做屏幕适配
+//              this.onResize();
+//          }
+//          if (this.videoTexture && this.videoTexture.bitmap) {
+//              this.videoTexture.disposeBitmap();
+//              this.videoTexture2D.destroy();
+//              this.videoTexture = null;
+//              this.videoTexture2D = null;
+//           }
+//           let buffer: Uint8Array = new Uint8Array(imgData.data.buffer);
+//           this.videoTexture2D = new Laya.Texture2D(imgData.width, imgData.height);
+//           this.videoTexture2D.setPixels(buffer);
+//           this.videoTexture = Laya.Texture.create(this.videoTexture2D, 0, 0, imgData.width, imgData.height);
+//           this.video.texture = this.videoTexture;
+//     }
+// }
+    </script>
+</body>
+
+</html>
